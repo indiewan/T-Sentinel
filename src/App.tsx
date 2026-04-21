@@ -38,8 +38,14 @@ export default function App() {
   const [autoPoll, setAutoPoll] = useState(localStorage.getItem("auto_poll") === "true");
   const [autoPush, setAutoPush] = useState(localStorage.getItem("auto_push") === "true");
   const [timeLeft, setTimeLeft] = useState(15 * 60);
+  const [currentTime, setCurrentTime] = useState(new Date());
 
   const performAnalysis = async (isAuto = false) => {
+    if (!process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY === "undefined") {
+      alert("CRITICAL ERROR: GEMINI_API_KEY is missing. Please add it to your Vercel Environment Variables and redeploy.");
+      return;
+    }
+    
     setLoading(true);
     try {
       const result = await analyzeMarket();
@@ -50,6 +56,7 @@ export default function App() {
       }
     } catch (error) {
       console.error("Analysis failed", error);
+      alert("Market scan failed. Check the browser console for details.");
     } finally {
       setLoading(false);
       setTimeLeft(15 * 60);
@@ -65,6 +72,9 @@ export default function App() {
 **Status:** ${data.status}
 **Sentiment Score:** ${data.sentimentScore}/10
 **Reasoning:** ${data.reasoning}
+
+**Asset Expected Directions:**
+${data.assetDirections?.map(a => `• **${a.asset}:** ${a.direction} - *${a.reasoning}*`).join("\n") || "No asset direction data"}
 
 **Short Squeeze Risk:** ${data.shortSqueezeRisk.level}
 *${data.shortSqueezeRisk.warning}*
@@ -115,6 +125,11 @@ ${data.economicCalendar.filter(e => e.impact === "High").map(e => `• ${e.time}
     }, 1000);
     return () => clearInterval(timer);
   }, [autoPoll, autoPush, webhookUrl]);
+
+  useEffect(() => {
+    const clock = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(clock);
+  }, []);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -326,6 +341,36 @@ ${data.economicCalendar.filter(e => e.impact === "High").map(e => `• ${e.time}
                 </Alert>
               )}
 
+              {/* Asset Expected Directions */}
+              {analysis.assetDirections && analysis.assetDirections.length > 0 && (
+                <Card className="bg-white/5 border-white/10">
+                  <CardHeader className="border-b border-white/5 pb-4">
+                    <CardTitle className="text-xs uppercase tracking-[0.2em] text-white font-black">Expected Daily Direction</CardTitle>
+                  </CardHeader>
+                  <CardContent className="pt-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {analysis.assetDirections.map((asset, idx) => (
+                        <div key={idx} className="p-4 rounded-xl border border-white/5 bg-white/5 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-lg font-black text-white">{asset.asset}</span>
+                            <Badge className={cn("text-[10px] font-black uppercase tracking-widest px-2 py-0.5", 
+                              asset.direction === "Bullish" ? "bg-green-500/20 text-green-400 border border-green-500/30" : 
+                              asset.direction === "Bearish" ? "bg-red-500/20 text-red-400 border border-red-500/30" : 
+                              "bg-gray-500/20 text-gray-400 border border-white/10"
+                            )}>
+                              {asset.direction}
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-gray-400 leading-relaxed font-medium">
+                            {asset.reasoning}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
               <Card className="bg-white/5 border-white/10">
                 <CardHeader className="flex flex-row items-center justify-between border-b border-white/5 pb-6">
                   <div className="flex items-center gap-3">
@@ -417,16 +462,16 @@ ${data.economicCalendar.filter(e => e.impact === "High").map(e => `• ${e.time}
         <div className="max-w-7xl mx-auto px-4 flex flex-col md:flex-row justify-between items-center gap-6 text-[10px] uppercase tracking-[0.3em] text-gray-600 font-black">
           <div className="flex items-center gap-3">
             <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-            <span>SENTINEL SYSTEM ONLINE // NQ & GC SPECIALIST</span>
+            <span>SENTINEL SYSTEM ONLINE // {currentTime.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })} BST</span>
           </div>
           <div className="flex gap-8">
             <div className="flex flex-col items-end">
               <span className="text-gray-800">London Open</span>
-              <span className="text-gray-400 mt-1">08:00 GMT</span>
+              <span className="text-gray-400 mt-1">08:00 BST</span>
             </div>
             <div className="flex flex-col items-end">
               <span className="text-gray-800">NY Open</span>
-              <span className="text-gray-400 mt-1">14:30 GMT</span>
+              <span className="text-gray-400 mt-1">14:30 BST</span>
             </div>
           </div>
         </div>
