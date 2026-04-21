@@ -85,9 +85,16 @@ ${data.techNews.map(n => `• ${n.headline} (${n.sentiment})`).join("\n")}
 **Key Events:**
 ${data.economicCalendar.filter(e => e.impact === "High").map(e => `• ${e.time}: ${e.event}`).join("\n")}
       `;
-      await axios.post("/api/notify", { webhookUrl, message });
+      
+      // Directly POST to Discord Webhook to avoid Vercel backend routing issues
+      await axios.post(webhookUrl, { 
+        content: message,
+        username: "Trading Sentinel",
+        avatar_url: "https://cdn-icons-png.flaticon.com/512/2586/2586117.png"
+      });
     } catch (error) {
-      console.error("Failed to send notification.");
+      console.error("Failed to send notification:", error);
+      alert("Failed to push to Discord. Ensure your Webhook URL is valid.");
     } finally {
       setNotifying(false);
     }
