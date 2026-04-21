@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { 
   TrendingUp, 
   AlertTriangle, 
@@ -119,19 +119,33 @@ ${data.economicCalendar.filter(e => e.impact === "High").map(e => `• ${e.time}
     localStorage.setItem("auto_push", String(autoPush));
   }, [webhookUrl, autoPoll, autoPush]);
 
+  // Use a ref to ensure the interval always calls the latest performAnalysis
+  // without needing to constantly clear and reset the setInterval timer.
+  const performAnalysisRef = useRef(performAnalysis);
+  useEffect(() => {
+    performAnalysisRef.current = performAnalysis;
+  }, [performAnalysis]);
+
   useEffect(() => {
     if (!autoPoll) return;
+    
     const timer = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
-          performAnalysis(true);
+          // Execute async side effects OUTSIDE the state updater function
+          setTimeout(() => {
+            if (performAnalysisRef.current) {
+              performAnalysisRef.current(true);
+            }
+          }, 0);
           return 15 * 60;
         }
         return prev - 1;
       });
     }, 1000);
+    
     return () => clearInterval(timer);
-  }, [autoPoll, autoPush, webhookUrl]);
+  }, [autoPoll]);
 
   useEffect(() => {
     const clock = setInterval(() => setCurrentTime(new Date()), 1000);
