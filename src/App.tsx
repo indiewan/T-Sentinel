@@ -40,6 +40,18 @@ export default function App() {
   const [timeLeft, setTimeLeft] = useState(15 * 60);
   const [currentTime, setCurrentTime] = useState(new Date());
 
+  // Always use refs so that timer and analysis functions have zero stale closure risk
+  const autoPushRef = useRef(autoPush);
+  const webhookUrlRef = useRef(webhookUrl);
+
+  useEffect(() => {
+    autoPushRef.current = autoPush;
+  }, [autoPush]);
+
+  useEffect(() => {
+    webhookUrlRef.current = webhookUrl;
+  }, [webhookUrl]);
+
   const performAnalysis = async (isAuto = false) => {
     if (!process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY === "undefined") {
       alert("CRITICAL ERROR: GEMINI_API_KEY is missing. Please add it to your Vercel Environment Variables and redeploy.");
@@ -51,8 +63,11 @@ export default function App() {
       const result = await analyzeMarket();
       setAnalysis(result);
       
-      if (isAuto && autoPush && webhookUrl) {
-        await pushBriefing(result);
+      const currentAutoPush = autoPushRef.current;
+      const currentWebhook = webhookUrlRef.current;
+
+      if (isAuto && currentAutoPush && currentWebhook) {
+        await pushBriefing(result, currentWebhook);
       }
     } catch (error) {
       console.error("Analysis failed", error);
@@ -63,8 +78,9 @@ export default function App() {
     }
   };
 
-  const pushBriefing = async (data: MarketAnalysis) => {
-    if (!data || !webhookUrl) return;
+  const pushBriefing = async (data: MarketAnalysis, overrideUrl?: string) => {
+    const urlToUse = overrideUrl || webhookUrl;
+    if (!data || !urlToUse) return;
     setNotifying(true);
     try {
       const message = `
@@ -87,7 +103,7 @@ ${data.economicCalendar.filter(e => e.impact === "High").map(e => `• ${e.time}
       `;
       
       // Directly POST to Discord Webhook to avoid Vercel backend routing issues
-      await axios.post(webhookUrl, { 
+      await axios.post(urlToUse, { 
         content: message,
         username: "Trading Sentinel",
         avatar_url: "https://cdn-icons-png.flaticon.com/512/2586/2586117.png"
